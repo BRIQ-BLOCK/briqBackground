@@ -1,60 +1,125 @@
 # Briq-Background
 
-Docker Compose setup for Celery, Redis, and Flower background task management.
+A ready-to-use Docker Compose setup for running Redis, Celery (with Beat for cron jobs), and Flower for remote background task management and monitoring.
 
-## Services Overview
+---
 
-- **Redis**: Acts as the message broker and result backend for Celery. It queues tasks and stores results.
-- **Celery**: Executes background tasks. This setup runs both the worker (processing tasks) and beat (scheduling periodic tasks).
-- **Flower**: Provides a web-based monitoring tool for Celery tasks and workers.
+## Features
 
-## How It Works
+- **Redis**: Message broker and result backend for Celery.
+- **Celery**: Runs worker and Beat for scheduled (cron) jobs.
+- **Flower**: Web UI for monitoring Celery tasks and workers.
 
-1. **Celery** workers connect to **Redis** to fetch and execute tasks.
-2. **Celery Beat** schedules periodic tasks and sends them to the queue in Redis.
-3. **Flower** connects to Redis and Celery to provide a dashboard at [http://localhost:5555](http://localhost:5555) for monitoring tasks and workers.
+---
 
-## Deployment
+## Quick Start
 
-### Prerequisites
+### 1. Prerequisites
 
 - [Docker](https://www.docker.com/products/docker-desktop) and [Docker Compose](https://docs.docker.com/compose/) installed.
+- (Recommended) Basic Linux server security (firewall, strong passwords).
 
-### Installing Docker and Docker Compose
+### 2. Clone and Configure
 
-1. Follow the official [Docker Engine installation guide](https://docs.docker.com/engine/install/).
-2. Install Docker Compose by following the [Compose plugin installation guide](https://docs.docker.com/compose/install/).
-3. Verify installation:
-   ```sh
-   docker --version
-   docker compose version
-   ```
+```sh
+git clone <this-repo-url>
+cd briqBackground
+```
 
-### Steps
+Create a `.env` file with strong credentials:
 
-1. Clone this repository and navigate to the project directory.
-2. Start all services with:
-   ```sh
-   docker-compose up
-   ```
-3. Access Flower dashboard at [http://localhost:5555](http://localhost:5555).
-4. Redis will be available on port `6177` for debugging or direct access.
+```
+REDIS_PASSWORD=your_secure_redis_password
+FLOWER_USER=admin
+FLOWER_PASSWORD=your_secure_flower_password
+```
 
-> **Note:** This setup is designed to be used remotely, connecting to your application deployed on a different server. There is no need to mount your application code into the containers.
+### 3. Build and Start Services
 
-### Stopping Services
+```sh
+docker-compose up -d --build
+```
 
-To stop all services, press `Ctrl+C` in the terminal or run:
+- **Redis** will be available on port `6379` (secured with your password).
+- **Flower** dashboard will be at [http://<your-server-ip>:5555](http://<your-server-ip>:5555) (login with your Flower credentials).
+
+### 4. Secure Your Server
+
+- Restrict access to Redis and Flower ports using your firewall (e.g., UFW):
+
+  ```sh
+  sudo ufw allow from <your-app-server-ip> to any port 6379
+  sudo ufw allow from <your-ip> to any port 5555
+  sudo ufw deny 6379
+  sudo ufw deny 5555
+  ```
+
+- (Optional) Set up HTTPS for Flower using a reverse proxy like Nginx.
+
+---
+
+## Using with Your External Application
+
+- **Celery/Redis Connection String** (from your app server):
+
+  ```
+  redis://:your_secure_redis_password@<your-server-ip>:6379/0
+  ```
+
+- **Celery Example**:
+
+  ```python
+  from celery import Celery
+  app = Celery('your_app',
+      broker='redis://:your_secure_redis_password@<your-server-ip>:6379/0',
+      backend='redis://:your_secure_redis_password@<your-server-ip>:6379/0'
+  )
+  ```
+
+- **Scheduled Tasks (Cron Jobs)**:  
+  The included `celery.py` defines a periodic task (`process_scheduled_messages_task`) that runs every 5 minutes.  
+  - If this task is defined in your external app, it will be picked up and executed by the worker.
+  - If you want to schedule other tasks, edit the `beat_schedule` in `celery.py`.
+
+---
+
+## Customization
+
+- **Add More Scheduled Tasks**:  
+  Edit `celery.py` and update the `beat_schedule` dictionary.
+- **Change Ports**:  
+  Edit `docker-compose.yml` as needed.
+- **Update Dependencies**:  
+  Edit `requirements.txt` and rebuild.
+
+---
+
+## Stopping Services
+
 ```sh
 docker-compose down
 ```
 
-## Customization
+---
 
-- Update environment variables in `docker-compose.yml` as needed.
-- If you need to connect to a different Redis or Celery instance, adjust the broker URLs accordingly.
+## Troubleshooting
+
+- **Celery/Beat errors**: Ensure your external app defines the scheduled tasks, and the task names match.
+- **Connection issues**: Check firewall rules and that your `.env` passwords are correct.
+- **Redis memory warning**: On the server, run:
+  ```sh
+  sudo sysctl vm.overcommit_memory=1
+  echo "vm.overcommit_memory = 1" | sudo tee -a /etc/sysctl.conf
+  ```
 
 ---
-This setup is ideal for remote background task management and monitoring with Celery, Redis, and Flower.
+
+## References
+
+- [Celery Documentation](https://docs.celeryq.dev/en/stable/)
+- [Flower Documentation](https://flower.readthedocs.io/en/stable/)
+- [Redis Security](https://redis.io/docs/management/security/)
+
+---
 
 Made with heart from briq 💖
