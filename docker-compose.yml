@@ -8,8 +8,10 @@ services:
     networks:
       - celery-network
   celery:
-    image: epwalsh/docker-celery:latest
-    command: sh -c "celery -A celery:app worker --loglevel=info & celery -A celery:app beat --loglevel=info"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "celery -A celery:celery_app worker --loglevel=info & celery -A celery:celery_app beat --loglevel=info"
     volumes:
       - .:/app
     depends_on:
@@ -20,8 +22,8 @@ services:
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
   flower:
-    image: mher/flower:2.0.0
-    command: celery -A celery:app flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
+    image: mher/flower:1.2.0
+    command: celery -A celery:celery_app flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
     ports:
       - "5555:5555"
     volumes:
