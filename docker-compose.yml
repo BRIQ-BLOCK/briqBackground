@@ -3,32 +3,36 @@ services:
   redis:
     image: redis:8.0-alpine
     ports:
-      - "6177:6379"
-    command: redis-server
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     networks:
       - celery-network
   celery:
     image: epwalsh/docker-celery:latest
-    command: sh -c "celery -A celery worker --loglevel=info & celery -A celery beat --loglevel=info"
+    command: sh -c "celery -A celery:app worker --loglevel=info & celery -A celery:app beat --loglevel=info"
+    volumes:
+      - .:/app
     depends_on:
       - redis
     networks:
       - celery-network
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
   flower:
     image: mher/flower:2.0.0
-    command: celery -A celery flower --port=5555
+    command: celery -A celery:app flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
     ports:
       - "5555:5555"
+    volumes:
+      - .:/app
     depends_on:
       - redis
       - celery
     networks:
       - celery-network
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 networks:
   celery-network:
     driver: bridge
